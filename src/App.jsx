@@ -7,7 +7,7 @@ function App() {
   return (
     <Suspense fallback={<h2>Loading...</h2>}>
       <Routes>
-        <Route path="/" element={<Page />} />
+        <Route path="/:doctorId" element={<Page />} />
       </Routes>
     </Suspense>
   );
