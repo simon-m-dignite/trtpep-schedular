@@ -17,8 +17,8 @@ const Page = () => {
   useEffect(() => {
     document.title = "Book An Appointment";
     const fetchServices = async () => {
-      const res = await appointmentServices.fetchServices();
-      console.log("services data >> ", res.services);
+      const res = await appointmentServices.fetchServices(doctorId);
+      console.log("services data >> ", res);
       setServices(res.services);
     };
 
@@ -47,7 +47,7 @@ const Page = () => {
             Select a service
           </p>
           <div className="mt-4 grid w-full gap-x-4 gap-y-5 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3">
-            {services.map((ser, index) => {
+            {services?.map((ser, index) => {
               return (
                 <div
                   className="relative custom-shadow rounded-2xl cursor-pointer"

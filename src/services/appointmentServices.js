@@ -10,9 +10,11 @@ const handleResponse = (response) => {
   }
 };
 
-const fetchServices = async () => {
+const fetchServices = async (doctorId) => {
   try {
-    const response = await axios.get(`${API_BASE_URL}/get-services`);
+    const response = await axios.get(
+      `${API_BASE_URL}/get-doctor-services/${doctorId}`
+    );
     return handleResponse(response);
   } catch (error) {
     throw new Error(
