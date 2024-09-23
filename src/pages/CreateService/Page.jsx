@@ -1,7 +1,10 @@
 import React, { useEffect, useState } from "react";
 import appointmentServices from "../../services/appointmentServices";
+import { useParams } from "react-router-dom";
 
 const Page = () => {
+  const { doctorId } = useParams();
+  console.log("doctorId >> ", doctorId);
   const [selectedTime, setSelectedTime] = useState(null);
   const [selectedServices, setSelectedServices] = useState([]);
   const [services, setServices] = useState([]);
