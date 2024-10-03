@@ -23,6 +23,36 @@ const fetchServices = async (doctorId) => {
   }
 };
 
+const bookAppointment = async (
+  patientFirstName,
+  patientLastName,
+  patientEmail,
+  patientPhoneNumber,
+  accountNumber,
+  selectedTime,
+  selectedDate,
+  selectedServices
+) => {
+  try {
+    const response = await axios.post(`${API_BASE_URL}/book-appointment`, {
+      patientFirstName,
+      patientLastName,
+      patientEmail,
+      patientPhoneNumber,
+      accountNumber,
+      selectedTime,
+      selectedDate,
+      selectedServices,
+    });
+    return handleResponse(response);
+  } catch (error) {
+    throw new Error(
+      error.response ? error.response.data.message : error.message
+    );
+  }
+};
+
 export default {
   fetchServices,
+  bookAppointment,
 };
