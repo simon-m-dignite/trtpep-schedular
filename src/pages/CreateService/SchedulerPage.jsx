@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import appointmentServices from "../../services/appointmentServices";
 import { useNavigate, useParams } from "react-router-dom";
-import { InlineWidget } from "react-calendly";
 import {
   useSession,
   useSupabaseClient,
@@ -14,6 +13,7 @@ import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { DateCalendar } from "@mui/x-date-pickers/DateCalendar";
 
 const Page = () => {
+  const navigate = useNavigate();
   const session = useSession();
   const supabase = useSupabaseClient();
   const { isLoading } = useSessionContext();
@@ -22,24 +22,25 @@ const Page = () => {
     return <></>;
   }
   const { doctorId } = useParams();
+  const [dEmail, setDEmail] = useState("");
+
   const [services, setServices] = useState([]); // coming from backend which i am listing on the page
 
-  const [selectedServices, setSelectedServices] = useState([]);
-  const [selectedDate, setSelectedDate] = useState("");
-  const [selectedTime, setSelectedTime] = useState(null);
+  // use states
   const [patientInfo, setPatientInfo] = useState({
     patientFirstName: "",
     patientLastName: "",
     patientEmail: "",
     patientPhoneNumber: "",
   });
+  const [selectedServices, setSelectedServices] = useState([]);
+  const [selectedTime, setSelectedTime] = useState(null);
   const [accountNumber, setAccountNumber] = useState("");
+  const [value, setValue] = useState(dayjs());
+
+  console.log("Services >> ", services);
+
   const [errors, setErrors] = useState({});
-  const [value, setValue] = useState(dayjs("2024-08-17"));
-
-  // console.log("selectedDate >> ", value);
-
-  const navigate = useNavigate();
 
   const handleChange = (event) => {
     const name = event.target.name;
@@ -99,64 +100,12 @@ const Page = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    if (validateForm()) {
-      // setSelectedDate("");
-      // setSelectedTime(null);
-      // setSelectedServices([]);
-      // setAccountNumber("");
-      // setPatientInfo({
-      //   patientFirstName: "",
-      //   patientLastName: "",
-      //   patientEmail: "",
-      //   patientPhoneNumber: "",
-      // });
-      setErrors({});
-      console.log(patientInfo);
-
-      const appointmentData = {
-        selectedServices,
-        selectedDate,
-        selectedTime,
-        patientFirstName: patientInfo.patientFirstName,
-        patientLastName: patientInfo.patientLastName,
-        patientEmail: patientInfo.patientEmail,
-        patientPhoneNumber: patientInfo.patientPhoneNumber,
-        accountNumber,
-      };
-
-      try {
-        const response = await fetch(
-          "http://localhost:8000/api/book-appointment",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify(appointmentData),
-          }
-        );
-
-        if (response.ok) {
-          console.log("Appointment booked successfully");
-        } else {
-          console.error("Error booking appointment");
-        }
-      } catch (err) {
-        console.error("Error:", err);
-      }
-    } else {
-      console.log("Validation failed");
-    }
-  };
-
   useEffect(() => {
     document.title = "Book An Appointment";
     const fetchServices = async () => {
       const res = await appointmentServices.fetchServices(doctorId);
-      setServices(res.services);
+      setServices(res?.services);
+      setDEmail(res?.doctorEmail);
     };
 
     fetchServices();
@@ -180,8 +129,6 @@ const Page = () => {
     await supabase.auth.signOut();
   }
 
-  console.log("selectedTimeSlot >> ", selectedTime);
-  // Handle service selection
   const handleServiceSelection = (serviceId) => {
     setSelectedServices((prevSelected) => {
       if (prevSelected.includes(serviceId)) {
@@ -197,7 +144,6 @@ const Page = () => {
     if (!validateForm()) {
       return;
     }
-    // console.log("Creating Google Calendar event with Meet link.");
     const formattedDate = value.format("YYYY-MM-DD");
 
     const formatDateTime = (date, time) => {
@@ -207,13 +153,13 @@ const Page = () => {
     // For example, the start dateTime:
     const startDateTime = formatDateTime(
       value.format("YYYY-MM-DD"),
-      selectedTime.start
+      selectedTime.startTime
     );
 
     // For the end dateTime (1 hour later):
     const endDateTime = formatDateTime(
       value.format("YYYY-MM-DD"),
-      selectedTime.end
+      selectedTime.endTime
     );
 
     const event = {
@@ -229,10 +175,7 @@ const Page = () => {
         dateTime: endDateTime,
         timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       },
-      attendees: [
-        { email: patientInfo.patientEmail },
-        { email: "smshoaib2001@gmail.com" },
-      ],
+      attendees: [{ email: patientInfo.patientEmail }, { email: dEmail }],
       conferenceData: {
         createRequest: {
           requestId: Math.random().toString(36).substring(7), // Unique request ID for the Meet link
@@ -242,27 +185,6 @@ const Page = () => {
     };
 
     try {
-      await fetch("http://localhost:8000/api/book-appointment", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          doctorId,
-          patientEmail: patientInfo.patientEmail,
-          patientFirstName: patientInfo.patientFirstName,
-          patientLastName: patientInfo.patientLastName,
-          patientPhoneNumber: patientInfo.patientPhoneNumber,
-          selectedServices,
-          selectedTime,
-          selectedDate: formattedDate,
-          accountNumber,
-        }),
-      })
-        .then((data) => data.json())
-        .then((data) => console.log(data))
-        .catch((error) => console.log("object >> ", error));
-
       const response = await fetch(
         "https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1", // conferenceDataVersion=1 is needed for Google Meet
         {
@@ -281,11 +203,33 @@ const Page = () => {
         const meetLink = data.conferenceData?.entryPoints[0]?.uri;
         console.log("Google Meet Link:", meetLink);
 
+        await fetch("http://localhost:8000/api/book-appointment", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            doctorId,
+            patient: patientInfo,
+            // patientEmail: patientInfo.patientEmail,
+            // patientFirstName: patientInfo.patientFirstName,
+            // patientLastName: patientInfo.patientLastName,
+            // patientPhoneNumber: patientInfo.patientPhoneNumber,
+            selectedServices,
+            selectedTime,
+            selectedDate: formattedDate,
+            accountNumber,
+          }),
+        })
+          .then((data) => data.json())
+          .then((data) => console.log(data))
+          .catch((error) => console.log("object >> ", error));
+
         alert(`Event created! Google Meet Link: ${meetLink}`);
 
         // Send an email notification to both doctor and patient
         await sendEmail(
-          "shoaib.muhammad@launchbox.pk",
+          "smshoaib2001@gmail.com",
           patientInfo.patientEmail,
           meetLink
         );
@@ -313,8 +257,8 @@ const Page = () => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          doctorEmail: "shoaib.muhammad@launchbox.pk",
-          patientEmail: "hammas.ahmed@gmail.com",
+          doctorEmail,
+          patientEmail,
           meetLink,
         }),
       });
@@ -446,14 +390,16 @@ const Page = () => {
                     type="button"
                     key={timeSlot._id} // Use timeSlot._id for unique keys
                     onClick={() => handleClick(timeSlot)} // Pass timeSlot to handleClick
-                    disabled={timeSlot.isBooked}
+                    // disabled={timeSlot.isBooked}
                     className={`rounded-lg px-4 py-2 font-medium ${
                       selectedTime === timeSlot
                         ? "bg-red-600 text-white"
-                        : "bg-red-100 text-red-900"
-                    } active:scale-95 outline-none`}
+                        : `bg-red-100 text-red-900 `
+                    } active:scale-95 outline-none ${
+                      !timeSlot && "cursor-no-drop"
+                    }`}
                   >
-                    {timeSlot.start} - {timeSlot.end}
+                    {timeSlot.startTime} - {timeSlot.endTime}
                   </button>
                 ))
               )}
@@ -565,16 +511,16 @@ const Page = () => {
             <button
               type="button"
               onClick={() => googleSignIn()}
-              className="text-sm text-white bg-red-600 px-6 py-3 rounded-lg font-medium"
+              className="mt-8 w-56 rounded-full border-8 border-red-500 bg-red-600 px-10 py-4 text-lg font-bold text-white transition hover:translate-y-1"
             >
-              Sign In With Google
+              Sign In with Google
             </button>
           )}
         </form>
 
-        <div>
+        {/* <div>
           <button onClick={() => signOut()}>Sign Out</button>
-        </div>
+        </div> */}
       </div>
       {/* ) : (
         <div>
