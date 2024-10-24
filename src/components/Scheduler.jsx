@@ -37,6 +37,7 @@ const Scheduler = () => {
   const [value, setValue] = useState(dayjs());
   const [errors, setErrors] = useState({});
   const [errorMessage, setErrorMessage] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const handleChange = (event) => {
     const name = event.target.name;
@@ -100,7 +101,7 @@ const Scheduler = () => {
     document.title = "Book An Appointment";
     const fetchServices = async () => {
       const res = await appointmentServices.fetchServices(doctorId);
-      // console.log("services api hit >> ", res);
+      console.log("services api hit >> ", res?.services);
       setServices(res?.services);
       setDEmail(res?.doctorEmail);
     };
@@ -111,6 +112,12 @@ const Scheduler = () => {
   async function signOut() {
     await supabase.auth.signOut();
   }
+
+  const totalPrice = services
+    .filter((service) => selectedServices.includes(service._id))
+    .reduce((sum, service) => sum + service.price, 0);
+
+  console.log("Total Price:", totalPrice);
 
   const handleServiceSelection = (serviceId) => {
     setSelectedServices((prevSelected) => {
@@ -146,27 +153,9 @@ const Scheduler = () => {
     if (!validateForm()) {
       return;
     }
+    setLoading(true);
 
     const cardElement = elements.getElement(CardElement);
-    // const { data } = await axios.post(
-    //   "http://localhost:5000/create-payment-intent",
-    //   { amount: 5000 }
-    // );
-    // // Confirm the payment with Stripe using client secret
-    // const { paymentIntent, error } = await stripe.confirmCardPayment(
-    //   data.clientSecret,
-    //   {
-    //     payment_method: {
-    //       card: cardElement,
-    //     },
-    //   }
-    // );
-
-    // if (error) {
-    //   setErrorMessage(error.message);
-    // } else if (paymentIntent.status === "succeeded") {
-    //   setPaymentSuccess("Payment successful!");
-    // }
 
     const formattedDate = value.format("YYYY-MM-DD");
 
@@ -236,7 +225,7 @@ const Scheduler = () => {
             selectedDate: formattedDate,
             accountNumber,
             meetUrl: meetLink,
-            amount: "100",
+            amount: totalPrice,
           }),
         });
 
@@ -283,12 +272,14 @@ const Scheduler = () => {
           setValue(dayjs());
           setErrorMessage("");
           setErrors({});
+          setLoading(false);
         }
       } else {
         console.error("Error creating event:", data);
         if (data.error.code == 401) {
           alert("Please sign in again");
           googleSignIn();
+          setLoading(false);
         }
         if (data.error.code == 403) {
           setErrorMessage(data.error.message);
@@ -299,6 +290,7 @@ const Scheduler = () => {
     } catch (err) {
       console.error("Error:", err);
       alert(err.message);
+      setLoading(false);
     }
   };
 
@@ -544,21 +536,6 @@ const Scheduler = () => {
               Payment
             </p>
             <CardElement />
-            {/* <div className="mt-4">
-              <input
-                type="text"
-                name="accountNumber"
-                value={accountNumber}
-                onChange={(e) => setAccountNumber(e.target.value)}
-                className="datepicker-input block w-full rounded-lg border border-red-300 bg-red-50 p-3.5 text-red-800 outline-none ring-opacity-30 placeholder:text-red-800 focus:ring focus:ring-red-300 sm:text-sm"
-                placeholder="4242 4242 4242 4242 4242"
-              />
-            </div>
-            {errors.accountNumber && (
-              <p className="text-red-500 text-sm mt-2">
-                {errors.accountNumber}
-              </p>
-            )} */}
           </div>
 
           <button
@@ -572,7 +549,7 @@ const Scheduler = () => {
               }
             }}
           >
-            {session ? "Book Now" : "Book Now"}
+            {session ? (loading ? "Processing..." : "Book Now") : "Book Now"}
           </button>
 
           {errorMessage !== "" ? (
