@@ -114,8 +114,8 @@ const Scheduler = () => {
   }
 
   const totalPrice = services
-    .filter((service) => selectedServices.includes(service._id))
-    .reduce((sum, service) => sum + service.price, 0);
+    ?.filter((service) => selectedServices.includes(service._id))
+    ?.reduce((sum, service) => sum + service.price, 0);
 
   console.log("Total Price:", totalPrice);
 
