@@ -5,6 +5,7 @@ import "./index.css";
 import { BrowserRouter } from "react-router-dom";
 import { createClient } from "@supabase/supabase-js";
 import { SessionContextProvider } from "@supabase/auth-helpers-react";
+import AppointmentContextProvider from "./context/context.jsx";
 
 const supabase = createClient(
   "https://pfuhmovrjjtoxbzornfc.supabase.co",
@@ -14,9 +15,11 @@ const supabase = createClient(
 createRoot(document.getElementById("root")).render(
   <StrictMode>
     <BrowserRouter>
-      <SessionContextProvider supabaseClient={supabase}>
-        <App />
-      </SessionContextProvider>
+      <AppointmentContextProvider>
+        <SessionContextProvider supabaseClient={supabase}>
+          <App />
+        </SessionContextProvider>
+      </AppointmentContextProvider>
     </BrowserRouter>
   </StrictMode>
 );

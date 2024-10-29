@@ -14,8 +14,6 @@ function App() {
     <Suspense fallback={<h2>Loading...</h2>}>
       <Routes>
         <Route path="/:doctorId" element={<SchedulerPage />} />
-        {/* <Route path="/" element={<Page />} /> */}
-        {/* <Route path="/message" element={<SuccessPage />} /> */}
       </Routes>
     </Suspense>
   );

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useContext, useEffect, useState } from "react";
 // import appointmentServices from "../../services/appointmentServices";
 import appointmentServices from "../services/appointmentServices";
 import { useNavigate, useParams } from "react-router-dom";
@@ -11,33 +11,40 @@ import { DateCalendar } from "@mui/x-date-pickers/DateCalendar";
 import { CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import axios from "axios";
 import { BASE_URL } from "../api/api";
+import { AppointmentContext } from "../context/context";
 
 const Scheduler = () => {
+  const {
+    services,
+    setServices,
+    patientInfo,
+    setPatientInfo,
+    selectedServices,
+    setSelectedServices,
+    selectedTime,
+    setSelectedTime,
+    accountNumber,
+    setAccountNumber,
+    value,
+    setValue,
+    errors,
+    setErrors,
+    errorMessage,
+    setErrorMessage,
+    loading,
+    setLoading,
+    totalPrice,
+    slots,
+    handleServiceSelection,
+  } = useContext(AppointmentContext);
   const navigate = useNavigate();
   const session = useSession();
   const supabase = useSupabaseClient();
   const { doctorId } = useParams();
   const [dEmail, setDEmail] = useState("");
-  const stripe = useStripe();
-  const elements = useElements();
+  const stripe = totalPrice == 0 ? null : useStripe();
+  const elements = totalPrice == 0 ? null : useElements();
   const [isProcessing, setIsProcessing] = useState(false);
-
-  const [services, setServices] = useState([]); // coming from backend which i am listing on the Scheduler
-
-  // use states
-  const [patientInfo, setPatientInfo] = useState({
-    patientFirstName: "",
-    patientLastName: "",
-    patientEmail: "",
-    patientPhoneNumber: "",
-  });
-  const [selectedServices, setSelectedServices] = useState([]);
-  const [selectedTime, setSelectedTime] = useState({});
-  const [accountNumber, setAccountNumber] = useState("account number");
-  const [value, setValue] = useState(dayjs());
-  const [errors, setErrors] = useState({});
-  const [errorMessage, setErrorMessage] = useState("");
-  const [loading, setLoading] = useState(false);
 
   const handleChange = (event) => {
     const name = event.target.name;
@@ -97,37 +104,21 @@ const Scheduler = () => {
     return Object.keys(newErrors).length === 0;
   };
 
+  const fetchServices = async () => {
+    const res = await appointmentServices.fetchServices(doctorId);
+    console.log("services api hit >> ", res?.services);
+    setServices(res?.services);
+    setDEmail(res?.doctorEmail);
+  };
+
   useEffect(() => {
     document.title = "Book An Appointment";
-    const fetchServices = async () => {
-      const res = await appointmentServices.fetchServices(doctorId);
-      console.log("services api hit >> ", res?.services);
-      setServices(res?.services);
-      setDEmail(res?.doctorEmail);
-    };
-
     fetchServices();
   }, [doctorId]);
 
   async function signOut() {
     await supabase.auth.signOut();
   }
-
-  const totalPrice = services
-    ?.filter((service) => selectedServices.includes(service._id))
-    ?.reduce((sum, service) => sum + service.price, 0);
-
-  console.log("Total Price:", totalPrice);
-
-  const handleServiceSelection = (serviceId) => {
-    setSelectedServices((prevSelected) => {
-      if (prevSelected.includes(serviceId)) {
-        return prevSelected.filter((id) => id !== serviceId);
-      } else {
-        return [...prevSelected, serviceId];
-      }
-    });
-  };
 
   async function googleSignIn() {
     const { error } = await supabase.auth.signInWithOAuth({
@@ -138,7 +129,7 @@ const Scheduler = () => {
       },
     });
     if (error) {
-      alert("Error logging in with Google provider with supabase");
+      alert("Error logging in with Google");
       console.log("Google provider with supabase error >> ", error);
     }
   }
@@ -154,8 +145,6 @@ const Scheduler = () => {
       return;
     }
     setLoading(true);
-
-    const cardElement = elements.getElement(CardElement);
 
     const formattedDate = value.format("YYYY-MM-DD");
 
@@ -235,24 +224,26 @@ const Scheduler = () => {
 
         if (dataRes.code === 400) {
           alert(dataRes.message);
+          setLoading(false);
           return;
         }
 
-        const { paymentIntent, error } = await stripe.confirmCardPayment(
-          dataRes.clientSecret,
-          {
-            payment_method: {
-              card: cardElement,
-            },
-          }
-        );
+        if (totalPrice > 0) {
+          const cardElement = elements.getElement(CardElement);
 
-        if (error) {
-          console.log("stripe error >> ", error);
-          // setErrorMessage(error.message);
-        } else if (paymentIntent.status === "succeeded") {
-          // setPaymentSuccess("Payment successful!");
-          console.log("payment successful");
+          const { paymentIntent, error } = await stripe.confirmCardPayment(
+            dataRes.clientSecret,
+            {
+              payment_method: {
+                card: cardElement,
+              },
+            }
+          );
+          if (error) {
+            console.log("stripe error >> ", error);
+          } else if (paymentIntent.status === "succeeded") {
+            console.log("payment successful");
+          }
         }
 
         if (dataRes.code === 400) {
@@ -285,6 +276,7 @@ const Scheduler = () => {
           setErrorMessage(data.error.message);
           alert("The user must be signed up for Google Calender.");
           googleSignIn();
+          setLoading(false);
         }
       }
     } catch (err) {
@@ -352,22 +344,21 @@ const Scheduler = () => {
             <div className="mt-4 grid w-full gap-x-4 gap-y-5 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3">
               {services?.map((ser) => {
                 const isSelected = selectedServices.includes(ser._id);
-
                 return (
                   <div
                     className={`relative custom-shadow rounded-2xl cursor-pointer ${
                       isSelected ? "bg-red-600 text-white" : ""
                     }`}
                     key={ser._id}
-                    onClick={() => handleServiceSelection(ser._id)} // Call the selection handler
+                    onClick={() => handleServiceSelection(ser._id)}
                   >
                     <input
                       className="peer hidden"
                       id={`service-${ser._id}`}
-                      type="checkbox" // Use checkbox for multiple selections
+                      type="checkbox"
                       name="services"
-                      checked={isSelected} // Bind checked state
-                      onChange={() => handleServiceSelection(ser._id)} // Ensure state updates on change
+                      checked={isSelected}
+                      onChange={() => handleServiceSelection(ser._id)}
                     />
                     <span
                       className={`absolute right-4 top-1/2 box-content block h-3 w-3 -translate-y-1/2 rounded-full border-8 ${
@@ -438,9 +429,8 @@ const Scheduler = () => {
                 service?.timeSlots?.map((timeSlot) => (
                   <button
                     type="button"
-                    key={timeSlot._id} // Use timeSlot._id for unique keys
-                    onClick={() => handleClick(timeSlot)} // Pass timeSlot to handleClick
-                    // disabled={timeSlot.isBooked}
+                    key={timeSlot._id}
+                    onClick={() => handleClick(timeSlot)}
                     className={`rounded-lg px-2 py-2.5 font-medium ${
                       selectedTime === timeSlot
                         ? "bg-red-600 text-white"
@@ -531,12 +521,14 @@ const Scheduler = () => {
           </div>
 
           {/* payment info */}
-          <div className="">
-            <p className="mt-8 font-serif text-xl font-bold text-blue-900 mb-3">
-              Payment
-            </p>
-            <CardElement />
-          </div>
+          {totalPrice > 0 && (
+            <div className="">
+              <p className="mt-8 font-serif text-xl font-bold text-blue-900 mb-3">
+                Payment
+              </p>
+              <CardElement />
+            </div>
+          )}
 
           <button
             type="submit"
