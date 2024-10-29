@@ -125,7 +125,7 @@ const Scheduler = () => {
       provider: "google",
       options: {
         scopes: "https://www.googleapis.com/auth/calendar",
-        redirectTo: `http://localhost:5173/${doctorId}`,
+        redirectTo: `https://trtpep-schedular.vercel.app/${doctorId}`,
       },
     });
     if (error) {
