@@ -12,6 +12,7 @@ import { CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import axios from "axios";
 import { BASE_URL } from "../api/api";
 import { AppointmentContext } from "../context/context";
+import { Try } from "@mui/icons-material";
 
 const Scheduler = () => {
   const {
@@ -42,9 +43,23 @@ const Scheduler = () => {
   const supabase = useSupabaseClient();
   const { doctorId } = useParams();
   const [dEmail, setDEmail] = useState("");
-  const stripe = totalPrice == 0 ? null : useStripe();
-  const elements = totalPrice == 0 ? null : useElements();
+  const stripe = totalPrice === 0 ? null : useStripe();
+  const elements = totalPrice === 0 ? null : useElements();
   const [isProcessing, setIsProcessing] = useState(false);
+  const [timeSlots, setTimeSlots] = useState([]);
+
+  const formatDateToUTC = (dateString) => {
+    // Create a Date object from the provided date string
+    const date = new Date(dateString);
+
+    // Convert to UTC and format the output
+    const utcString = date.toISOString();
+
+    // Set to the desired format (keeping the date part and setting time to 00:00:00.000Z)
+    const formattedDate = utcString.split("T")[0] + "T00:00:00.000Z";
+
+    return formattedDate;
+  };
 
   const handleChange = (event) => {
     const name = event.target.name;
@@ -53,7 +68,7 @@ const Scheduler = () => {
   };
 
   const handleClick = (time) => {
-    setSelectedTime(time);
+    setSelectedTime(time?.time);
   };
 
   const validateForm = () => {
@@ -116,6 +131,25 @@ const Scheduler = () => {
     fetchServices();
   }, [doctorId]);
 
+  const getSlots = async () => {
+    try {
+      const res = await axios.post(`${BASE_URL}/doctor-slots`, {
+        doctorId,
+        appointmentDate: formatDateToUTC(value),
+      });
+      console.log(res?.data?.slots);
+      setTimeSlots(res?.data?.slots);
+    } catch (error) {
+      setTimeSlots(error?.data?.slots);
+
+      console.log(error);
+    }
+  };
+
+  useEffect(() => {
+    getSlots();
+  }, [value]);
+
   async function signOut() {
     await supabase.auth.signOut();
   }
@@ -125,7 +159,7 @@ const Scheduler = () => {
       provider: "google",
       options: {
         scopes: "https://www.googleapis.com/auth/calendar",
-        redirectTo: `https://trtpep-schedular.vercel.app/${doctorId}`,
+        redirectTo: `http://localhost:5173/${doctorId}`,
       },
     });
     if (error) {
@@ -133,6 +167,31 @@ const Scheduler = () => {
       console.log("Google provider with supabase error >> ", error);
     }
   }
+
+  const getEndTime = (time, duration) => {
+    // Split the time into hours and minutes
+    let [hours, minutes] = time.split(":").map(Number);
+
+    // Add the duration in minutes
+    minutes += duration;
+
+    // Handle overflow of minutes
+    if (minutes >= 60) {
+      hours += Math.floor(minutes / 60);
+      minutes %= 60;
+    }
+
+    // Handle overflow of hours (24-hour format)
+    if (hours >= 24) {
+      hours %= 24;
+    }
+
+    // Format the new time as 'HH:MM'
+    const adjustedTime = `${String(hours).padStart(2, "0")}:${String(
+      minutes
+    ).padStart(2, "0")}`;
+    return adjustedTime;
+  };
 
   const createCalendarEvent = async (e) => {
     e.preventDefault();
@@ -149,17 +208,27 @@ const Scheduler = () => {
     const formattedDate = value.format("YYYY-MM-DD");
 
     const formatDateTime = (date, time) => {
-      return dayjs(`${date}T${time}`).toISOString();
+      // Combine date and time into a single string and create a Date object in UTC
+      const utcDate = new Date(
+        Date.UTC(
+          parseInt(date.split("-")[0]), // Year
+          parseInt(date.split("-")[1]) - 1, // Month (0-indexed)
+          parseInt(date.split("-")[2]), // Day
+          parseInt(time.split(":")[0]), // Hours
+          parseInt(time.split(":")[1]) // Minutes
+        )
+      );
+      return utcDate.toISOString();
     };
 
     const startDateTime = formatDateTime(
       value.format("YYYY-MM-DD"),
-      selectedTime.startTime
+      selectedTime
     );
 
     const endDateTime = formatDateTime(
       value.format("YYYY-MM-DD"),
-      selectedTime.endTime
+      getEndTime(selectedTime, 30) // change duration later
     );
 
     const event = {
@@ -215,6 +284,9 @@ const Scheduler = () => {
             accountNumber,
             meetUrl: meetLink,
             amount: totalPrice,
+            appointmentDate: formatDateToUTC(value),
+            time: selectedTime,
+            serviceDuration: 30,
           }),
         });
 
@@ -343,14 +415,14 @@ const Scheduler = () => {
             </p>
             <div className="mt-4 grid w-full gap-x-4 gap-y-5 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3">
               {services?.map((ser) => {
-                const isSelected = selectedServices.includes(ser._id);
+                const isSelected = selectedServices?.includes(ser?._id);
                 return (
                   <div
                     className={`relative custom-shadow rounded-2xl cursor-pointer ${
                       isSelected ? "bg-red-600 text-white" : ""
                     }`}
                     key={ser._id}
-                    onClick={() => handleServiceSelection(ser._id)}
+                    onClick={() => handleServiceSelection(ser?._id)}
                   >
                     <input
                       className="peer hidden"
@@ -358,7 +430,7 @@ const Scheduler = () => {
                       type="checkbox"
                       name="services"
                       checked={isSelected}
-                      onChange={() => handleServiceSelection(ser._id)}
+                      onChange={() => handleServiceSelection(ser?._id)}
                     />
                     <span
                       className={`absolute right-4 top-1/2 box-content block h-3 w-3 -translate-y-1/2 rounded-full border-8 ${
@@ -371,18 +443,18 @@ const Scheduler = () => {
                           ? "bg-red-600 text-white"
                           : "bg-white text-black"
                       }`}
-                      htmlFor={`service-${ser._id}`}
+                      htmlFor={`service-${ser?._id}`}
                     >
                       <span className="mt-2 font-medium">
-                        {ser.serviceTitle} - {ser.serviceSubtitle}
+                        {ser?.serviceTitle} - {ser?.serviceSubtitle}
                       </span>
                       <span className="text-xs">
-                        {ser.price === 0 ? (
+                        {ser?.price === 0 ? (
                           <span>Price varies</span>
                         ) : (
-                          <span>US${ser.price}</span>
+                          <span>US${ser?.price}</span>
                         )}{" "}
-                        - {ser.duration} mins
+                        - {ser?.serviceDuration} mins
                       </span>
                     </label>
                   </div>
@@ -407,7 +479,10 @@ const Scheduler = () => {
                   <DemoItem>
                     <DateCalendar
                       value={value}
-                      onChange={(newValue) => setValue(newValue)}
+                      onChange={(newValue) => {
+                        setValue(newValue);
+                        console.log(newValue);
+                      }}
                     />
                   </DemoItem>
                 </DemoContainer>
@@ -425,24 +500,23 @@ const Scheduler = () => {
               Choose a timeslot
             </p>
             <div className="mt-4 grid grid-cols-4 gap-2 lg:max-w-xl">
-              {services?.map((service) =>
-                service?.timeSlots?.map((timeSlot) => (
-                  <button
-                    type="button"
-                    key={timeSlot._id}
-                    onClick={() => handleClick(timeSlot)}
-                    className={`rounded-lg px-2 py-2.5 font-medium ${
-                      selectedTime === timeSlot
-                        ? "bg-red-600 text-white"
-                        : `bg-red-100 text-red-900 `
-                    } active:scale-95 outline-none ${
-                      !timeSlot && "cursor-no-drop"
-                    }`}
-                  >
-                    {timeSlot.startTime}
-                  </button>
-                ))
-              )}
+              {timeSlots?.map((slot, index) => (
+                <button
+                  type="button"
+                  key={index}
+                  disabled={!slot?.isAvailable}
+                  onClick={() => handleClick(slot)}
+                  className={`rounded-lg px-2 py-2.5 disabled:bg-gray-100 disabled:text-gray-700 font-medium ${
+                    selectedTime === slot.time
+                      ? "bg-red-600 text-white"
+                      : `bg-red-100 text-red-900 `
+                  } active:scale-95 outline-none ${
+                    !slot.time && "cursor-no-drop"
+                  }`}
+                >
+                  {slot?.time}
+                </button>
+              ))}
             </div>
             {errors.selectedTime && (
               <p className="text-red-500 text-sm mt-2">{errors.selectedTime}</p>

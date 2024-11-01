@@ -22,17 +22,17 @@ const AppointmentContextProvider = ({ children }) => {
   const [loading, setLoading] = useState(false);
 
   const totalPrice = services
-    ?.filter((service) => selectedServices.includes(service._id))
+    ?.filter((service) => selectedServices?.includes(service._id))
     ?.reduce((sum, service) => sum + service.price, 0);
 
-  const slots = services.map((ser) => {
-    return ser.duration;
+  const slots = services?.map((ser) => {
+    return ser?.duration;
   });
 
   const handleServiceSelection = (serviceId) => {
     setSelectedServices((prevSelected) => {
       if (prevSelected.includes(serviceId)) {
-        return prevSelected.filter((id) => id !== serviceId);
+        return prevSelected?.filter((id) => id !== serviceId);
       } else {
         return [...prevSelected, serviceId];
       }

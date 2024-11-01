@@ -10,12 +10,12 @@ const stripePromise = loadStripe(
 
 const SchedulerPage = () => {
   const { totalPrice } = useContext(AppointmentContext);
-  return totalPrice > 0 ? (
-    <Elements stripe={stripePromise}>
-      <Scheduler />
-    </Elements>
-  ) : (
-    <Scheduler />
+  return (
+    <>
+      <Elements stripe={stripePromise}>
+        <Scheduler />
+      </Elements>
+    </>
   );
 };
 
